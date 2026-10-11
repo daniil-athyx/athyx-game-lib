@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="c"></canvas>
+<script>
+async function test() {
+    try {
+        const canvas = document.getElementById('c');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) {
+            console.log('RESULT: NO_WEBGL2');
+            return;
+        }
+
+        // Create an ImageBitmap
+        const off = document.createElement('canvas');
+        off.width = 512; off.height = 512;
+        const octx = off.getContext('2d');
+        octx.fillStyle = 'red';
+        octx.fillRect(0, 0, 512, 512);
+        const bmp = await createImageBitmap(off);
+
+        // Test downscaleSource
+        const scratchCanvas = document.createElement('canvas');
+        scratchCanvas.width = 1; scratchCanvas.height = 1;
+        const scratchCtx = scratchCanvas.getContext('2d');
+        scratchCtx.drawImage(bmp, 0, 0, 1, 1);
+
+        const solidCanvas = document.createElement('canvas');
+        solidCanvas.width = 512; solidCanvas.height = 512;
+        const sctx = solidCanvas.getContext('2d');
+        sctx.drawImage(scratchCanvas, 0, 0, 1, 1, 0, 0, 512, 512);
+
+        // Now test WebGL2 texStorage2D + texSubImage2D with solidCanvas
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 512, 512);
+
+        console.log('Testing texSubImage2D with canvas...');
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, solidCanvas);
+        const err = gl.getError();
+        console.log('RESULT: SUCCESS, glError = ' + err);
+
+        // Now test setting property on ImageBitmap
+        try {
+            bmp._solidCanvas = solidCanvas;
+            console.log('RESULT: bmp._solidCanvas =', !!bmp._solidCanvas);
+        } catch(e) {
+            console.log('RESULT: bmp._solidCanvas THREW', e.message);
+        }
+    } catch(err) {
+        console.log('RESULT: EXCEPTION', err.message);
+    }
+}
+test();
+</script>
+</body>
+</html>
