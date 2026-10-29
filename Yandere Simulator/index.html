@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Yandere%20Simulator/">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Yandere Simulator</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #unityContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+        #unityContainer canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+        #loading-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff66b2;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-text">LOADING YANDERE SIMULATOR... 0%</div>
+    <div id="unityContainer"></div>
+    <script>
+        var BASE_URL = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Yandere%20Simulator/";
+        var loadingText = document.querySelector("#loading-text");
+        var totalParts = 6;
+        var doneParts = 0;
+
+        async function fetchWithRetry(url, retries) {
+            retries = retries || 4;
+            for (var i = 0; i < retries; i++) {
+                try {
+                    var res = await fetch(url);
+                    if (!res.ok) throw new Error("HTTP " + res.status);
+                    var buf = await res.arrayBuffer();
+                    doneParts++;
+                    var pct = Math.min(100, Math.round((doneParts / totalParts) * 100));
+                    if (loadingText) loadingText.textContent = "LOADING YANDERE SIMULATOR... " + pct + "%";
+                    return buf;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    await new Promise(function(r) { setTimeout(r, 800 * (i + 1)); });
+                }
+            }
+        }
+
+        async function mergeFiles(fileParts) {
+            var results = new Array(fileParts.length);
+            var nextIdx = 0;
+            async function worker() {
+                while (nextIdx < fileParts.length) {
+                    var idx = nextIdx++;
+                    results[idx] = await fetchWithRetry(fileParts[idx], 4);
+                }
+            }
+            await Promise.all([worker(), worker(), worker()]);
+            return URL.createObjectURL(new Blob(results));
+        }
+
+        function getParts(file, start, end) {
+            var parts = [];
+            for (var i = start; i <= end; i++) {
+                parts.push(BASE_URL + file + ".part" + i);
+            }
+            return parts;
+        }
+
+        (async function() {
+            try {
+                var lRes = await fetch(BASE_URL + "Build/UnityLoader.js");
+                (0, eval)(await lRes.text());
+
+                var dataUrl = await mergeFiles(getParts("Build/YandereSim.data.unityweb", 1, 6));
+
+                var originalOpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function(method, url) {
+                    var rest = Array.prototype.slice.call(arguments, 2);
+                    if (typeof url === "string") {
+                        if (url.indexOf("YandereSim.data.unityweb") !== -1) {
+                            url = dataUrl;
+                        } else if (url.indexOf("YandereSim.") !== -1 && url.indexOf("http") !== 0 && url.indexOf("blob:") !== 0) {
+                            url = BASE_URL + "Build/" + url.split("/").pop();
+                        }
+                    }
+                    return originalOpen.apply(this, [method, url].concat(rest));
+                };
+
+                UnityLoader.instantiate("unityContainer", BASE_URL + "Build/YandereSim.json", {
+                    Module: {
+                        onRuntimeInitialized: function() {
+                            if (loadingText) loadingText.remove();
+                        }
+                    }
+                });
+
+                var resize = function() {
+                    var container = document.getElementById("unityContainer");
+                    if (container) {
+                        container.style.width = window.innerWidth + "px";
+                        container.style.height = window.innerHeight + "px";
+                    }
+                };
+                window.addEventListener("resize", resize);
+                resize();
+            } catch (err) {
+                console.error(err);
+                if (loadingText) loadingText.textContent = "Error: " + err.message;
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Fireboy%20and%20Watergirl%204/">
+  <meta charset="utf-8">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Fireboy and Watergirl 4</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      font-family: Arial, sans-serif;
+    }
+    #flash-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    ruffle-player {
+      width: 100% !important;
+      height: 100% !important;
+      background: #000;
+      display: block;
+    }
+    #loading-msg {
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-msg">LOADING FIREBOY AND WATERGIRL 4...</div>
+  <div id="flash-container"></div>
+  <script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+      autoplay: "on",
+      unmuteOverlay: "hidden",
+      backgroundColor: "#000000",
+      letterbox: "on",
+      scale: "showAll"
+    };
+
+    (async function() {
+      var loadingMsg = document.getElementById("loading-msg");
+      try {
+        await new Promise(function(resolve, reject) {
+          var s = document.createElement("script");
+          s.src = "https://unpkg.com/@ruffle-rs/ruffle";
+          s.onload = resolve;
+          s.onerror = function() {
+            var s2 = document.createElement("script");
+            s2.src = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle/ruffle.min.js";
+            s2.onload = resolve;
+            s2.onerror = reject;
+            document.head.appendChild(s2);
+          };
+          document.head.appendChild(s);
+        });
+
+        var container = document.getElementById("flash-container");
+        var ruffle = window.RufflePlayer.newest();
+        var player = ruffle.createPlayer();
+        player.style.width = "100%";
+        player.style.height = "100%";
+        container.appendChild(player);
+
+        var swfRes = await fetch('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Fireboy%20and%20Watergirl%204/fbwg4.swf'); var swfBuf = await swfRes.arrayBuffer();
+        if (loadingMsg) loadingMsg.remove();
+        await player.load({ data: new Uint8Array(swfBuf) });
+      } catch (err) {
+        console.error(err);
+        if (loadingMsg) loadingMsg.textContent = "Error loading game: " + err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

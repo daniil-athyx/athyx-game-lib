@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Jetpack%20Joyride/">
+    <meta charset="utf-8" />
+    <title>Jetpack Joyride</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Jetpack%20Joyride/css/styles.css" />
+    <link rel="icon" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Jetpack%20Joyride/splash.jpg" />
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=no, initial-scale=1, minimum-scale=1, maximum-scale=1" />
+  </head>
+  <body>
+    <div class="fontLoader" style="font-family: jetpackia;">-</div>
+    <img id="rotate_image" src="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Jetpack%20Joyride/img/HB_ic_rotateScreen.png" alt="rotate_screen" class="center" />
+    <div id="content">
+      <div id="phaser-canvas"></div>
+    </div>
+    <script>
+      (async function() {
+        var BASE = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Jetpack%20Joyride/";
+        var pRes = await fetch(BASE + "engine/phaser-3.24.1.min.js");
+        (0, eval)(await pRes.text());
+        var gRes = await fetch(BASE + "game3.js");
+        (0, eval)(await gRes.text());
+        window.dispatchEvent(new Event("load"));
+      })();
+    </script>
+  </body>
+</html>

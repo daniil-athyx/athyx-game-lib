@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Terraria/">
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Terraria</title>
+	<style>
+		html, body {
+			margin: 0;
+			padding: 0;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			background: #000;
+		}
+		#game-container, iframe, canvas {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			border: none;
+			display: block;
+		}
+	</style>
+</head>
+<body>
+	<div id="app"></div>
+	<canvas id="canvas" style="width: 100%"></canvas>
+	<script type="module">
+		const BASE = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Terraria/";
+		const origFetch = window.fetch.bind(window);
+		window.fetch = function(input, init) {
+			if (typeof input === "string" && !input.startsWith("http") && !input.startsWith("blob:") && !input.startsWith("data:")) {
+				const clean = input.replace(/^\.?\//, "");
+				if (clean.startsWith("atlas") || clean === "mast.bin" || clean === "main.wasm") {
+					input = BASE + clean;
+				}
+			}
+			return origFetch(input, init);
+		};
+		import(BASE + "main.js");
+	</script>
+</body>
+</html>

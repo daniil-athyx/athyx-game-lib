@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Bendy%20and%20the%20Ink%20Machine/">
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Bendy and the Ink Machine</title>
+  <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Bendy%20and%20the%20Ink%20Machine/TemplateData/favicon.ico">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+    }
+    body {
+      background: #000;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+    .webgl-content {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+    #unityContainer {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="webgl-content">
+    <div id="loading-text" style="color: #ffcc00; font-size: 32px; font-weight: bold; text-align: center; margin-top: 20px; position: relative; z-index: 10;">LOADING BENDY AND THE INK MACHINE... 0%</div>
+    <div id="unityContainer"></div>
+  </div>
+  <script>
+    var BASE_URL = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Bendy%20and%20the%20Ink%20Machine/";
+    var loadingText = document.querySelector("#loading-text");
+    var totalParts = 7;
+    var doneParts = 0;
+
+    async function fetchWithRetry(url, retries) {
+      retries = retries || 4;
+      for (var i = 0; i < retries; i++) {
+        try {
+          var res = await fetch(url);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var buf = await res.arrayBuffer();
+          doneParts++;
+          var pct = Math.min(100, Math.round((doneParts / totalParts) * 100));
+          if (loadingText) loadingText.textContent = "LOADING BENDY AND THE INK MACHINE... " + pct + "%";
+          return buf;
+        } catch (err) {
+          if (i === retries - 1) throw err;
+          await new Promise(function(r) { setTimeout(r, 800 * (i + 1)); });
+        }
+      }
+    }
+
+    async function mergeFiles(fileParts) {
+      var results = new Array(fileParts.length);
+      var nextIdx = 0;
+      async function worker() {
+        while (nextIdx < fileParts.length) {
+          var idx = nextIdx++;
+          results[idx] = await fetchWithRetry(fileParts[idx], 4);
+        }
+      }
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      return URL.createObjectURL(new Blob(results));
+    }
+
+    function getParts(file, start, end) {
+      var parts = [];
+      for (var i = start; i <= end; i++) {
+        parts.push(BASE_URL + file + ".part" + i);
+      }
+      return parts;
+    }
+
+    function resizeUnityContainer() {
+      var container = document.getElementById("unityContainer");
+      if (container) {
+        container.style.width = window.innerWidth + "px";
+        container.style.height = window.innerHeight + "px";
+      }
+    }
+
+    (async function() {
+      try {
+        var pRes = await fetch(BASE_URL + "TemplateData/UnityProgress.js");
+        if (pRes.ok) (0, eval)(await pRes.text());
+        var lRes = await fetch(BASE_URL + "Build/UnityLoader.js");
+        (0, eval)(await lRes.text());
+
+        var dataUrl = await mergeFiles(getParts("Build/BATIM.data.unityweb", 1, 7));
+
+        var originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url) {
+          var rest = Array.prototype.slice.call(arguments, 2);
+          if (typeof url === "string") {
+            if (url.indexOf("BATIM.data.unityweb") !== -1) {
+              url = dataUrl;
+            } else if (url.indexOf("BATIM.") !== -1 && url.indexOf("http") !== 0 && url.indexOf("blob:") !== 0) {
+              url = BASE_URL + "Build/" + url.split("/").pop();
+            }
+          }
+          return originalOpen.apply(this, [method, url].concat(rest));
+        };
+
+        window.addEventListener("resize", resizeUnityContainer);
+        UnityLoader.instantiate("unityContainer", BASE_URL + "Build/BATIM.json", {
+          onProgress: typeof UnityProgress === "function" ? UnityProgress : undefined,
+          Module: {
+            onRuntimeInitialized: function() {
+              resizeUnityContainer();
+              if (loadingText) loadingText.remove();
+            }
+          }
+        });
+      } catch (err) {
+        console.error(err);
+        if (loadingText) loadingText.textContent = "Error: " + err.message;
+      }
+    })();
+  </script>
+</body>
+</html>
