@@ -264,11 +264,12 @@
                 dataUrl: dataUrl,
                 frameworkUrl: buildUrl + "/Build.framework.js",
                 codeUrl: wasmUrl,
-                streamingAssetsUrl: baseCdn + "StreamingAssets",
+                streamingAssetsUrl: "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Amanda%20the%20Adventurer/StreamingAssets",
                 companyName: "MangledMaw",
                 productName: "Amanda The Adventurer",
                 productVersion: "1.6.17b",
                 showBanner: unityShowBanner,
+                cacheControl: function () { return "no-store"; },
             };
             if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
                 var meta = document.createElement('meta');

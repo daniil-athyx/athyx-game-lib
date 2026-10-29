@@ -198,11 +198,10 @@
 
     <canvas id="unity-canvas"></canvas>
 
-    <script src="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Schoolboy%20Runaway/Build/Schoolboy%20%20-%20Original.loader.js"></script>
-
     <script>
       const baseBuild = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Schoolboy%20Runaway/Build/";
       const base = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Schoolboy%20Runaway/";
+      const loaderUrl = baseBuild + "Schoolboy%20%20-%20Original.loader.js";
 
       const MAX_RETRIES = 3;
       const RETRY_DELAY_MS = 1000;
@@ -286,22 +285,37 @@
         return new Blob(buffers, file.name.endsWith(".wasm") ? { type: "application/wasm" } : undefined);
       }
 
+      async function ensureUnityLoader(url) {
+        if (typeof window.createUnityInstance === "function") return;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to load Unity loader (" + res.status + ")");
+        const code = await res.text();
+        (0, eval)(code);
+      }
+
       async function start() {
-        const [wasmBlob, dataBlob] = await Promise.all([loadFile(files[0]), loadFile(files[1])]);
+        const [wasmBlob, dataBlob] = await Promise.all([
+          loadFile(files[0]),
+          loadFile(files[1]),
+          ensureUnityLoader(loaderUrl)
+        ]);
 
         const wasmUrl = URL.createObjectURL(wasmBlob);
         const dataUrl = URL.createObjectURL(dataBlob);
 
         document.getElementById("text").textContent = "Starting game...";
 
-        const instance = await createUnityInstance(document.querySelector("#unity-canvas"), {
+        const instance = await window.createUnityInstance(document.querySelector("#unity-canvas"), {
           dataUrl: dataUrl,
           frameworkUrl: baseBuild + "278d31d08ace86d617c05eb22fa1b248.js",
           codeUrl: wasmUrl,
-          streamingAssetsUrl: base + "StreamingAssets",
+          streamingAssetsUrl: "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Schoolboy%20Runaway/StreamingAssets",
           companyName: "Linked Squad",
           productName: "SchoolBoy Runaway",
-          productVersion: "0.5"
+          productVersion: "0.5",
+          cacheControl: function () {
+            return "no-store";
+          }
         });
 
         window.unityInstance = instance;
