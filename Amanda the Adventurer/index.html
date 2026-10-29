@@ -5,7 +5,7 @@
     <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Amanda%20the%20Adventurer/">
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | Amanda The Adventurer</title>
+    <title>Amanda The Adventurer</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     <style>
@@ -16,6 +16,7 @@
             overflow: hidden;
             height: 100%;
             width: 100%;
+            background: #0b0b0b;
         }
 
         #unity-container {
@@ -25,11 +26,46 @@
             top: 0;
             left: 0;
         }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: #0b0b0b;
+            color: white;
+            font-family: sans-serif;
+            z-index: 20;
+        }
+
+        #text {
+            font-size: 18px;
+        }
+
+        #bar {
+            width: 60%;
+            height: 12px;
+            background: #333;
+        }
+
+        #fill {
+            height: 100%;
+            width: 0%;
+            background: #4caf50;
+        }
     </style>
 </head>
 
 <body>
-    <div id="loading-text" style="color: black; font-family: cursive; font-size: 48px; text-align: center; margin-top: 20px;">LOADING...</div>
+    <div id="loader">
+        <div id="text">0.0 MB / 1380 MB (0/76 parts)</div>
+        <div id="bar">
+            <div id="fill"></div>
+        </div>
+    </div>
     <div id="unity-container" class="unity-desktop" hidden>
         <canvas id="unity-canvas" width=960 height=600></canvas>
         <div id="unity-loading-bar">
@@ -41,100 +77,181 @@
         <div id="unity-warning"> </div>
     </div>
     <script>
-
         var container = document.querySelector("#unity-container");
         var canvas = document.querySelector("#unity-canvas");
         var loadingBar = document.querySelector("#unity-loading-bar");
         var progressBarFull = document.querySelector("#unity-progress-bar-full");
-        var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-        var warningBanner = document.querySelector("#unity-warning");
-        var loadingText = document.querySelector("#loading-text");
+        var loaderEl = document.querySelector("#loader");
+        var textEl = document.querySelector("#text");
+        var fillEl = document.querySelector("#fill");
 
         function unityShowBanner(msg, type) {}
 
-        async function fetchPart(partUrl) {
-            const isChunked = partUrl.includes("Build/Build.data") || partUrl.includes("Build/Build.wasm") || partUrl.includes("Clip_Secret Tape 3.webm");
-            if (!isChunked) {
-                const res = await originalFetch(partUrl);
-                if (res.ok) return res.arrayBuffer();
-                if (res.status !== 403 && res.status !== 404) {
-                    throw new Error("HTTP " + res.status + " for " + partUrl);
-                }
+        const originalFetch = window.fetch.bind(window);
+        const MAX_RETRIES = 4;
+        const RETRY_DELAY_MS = 1000;
+        const CONCURRENCY = 6;
+        const totalGuess = 1447000000;
+        let doneparts = 0;
+        let maxparts = 0;
+        let completedBytes = 0;
+        const activeProgress = new Map();
+
+        function sleep(ms) {
+            return new Promise(r => setTimeout(r, ms));
+        }
+
+        function updateUI() {
+            let active = 0;
+            for (const v of activeProgress.values()) active += v;
+            const loaded = completedBytes + active;
+            const mb = (loaded / 1024 / 1024).toFixed(1);
+            const total = (totalGuess / 1024 / 1024).toFixed(0);
+            textEl.textContent = `${mb} MB / ${total} MB (${doneparts}/${maxparts} parts)`;
+            fillEl.style.width = Math.min(100, (loaded / totalGuess) * 100) + "%";
+        }
+
+        async function readStreamWithProgress(res, key) {
+            if (!res.body) {
+                const buf = await res.arrayBuffer();
+                completedBytes += buf.byteLength;
+                updateUI();
+                return buf;
             }
-            const [c0, c1] = await Promise.all([
-                originalFetch(partUrl + ".chunk00").then(r => {
-                    if (!r.ok) throw new Error("Failed " + partUrl + ".chunk00: " + r.status);
-                    return r.arrayBuffer();
-                }),
-                originalFetch(partUrl + ".chunk01").then(r => {
-                    if (!r.ok) throw new Error("Failed " + partUrl + ".chunk01: " + r.status);
-                    return r.arrayBuffer();
-                })
-            ]);
-            const out = new Uint8Array(c0.byteLength + c1.byteLength);
-            out.set(new Uint8Array(c0), 0);
-            out.set(new Uint8Array(c1), c0.byteLength);
+            const reader = res.body.getReader();
+            const chunks = [];
+            let received = 0;
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                received += value.byteLength;
+                activeProgress.set(key, received);
+                updateUI();
+            }
+            activeProgress.delete(key);
+            completedBytes += received;
+            updateUI();
+            const out = new Uint8Array(received);
+            let off = 0;
+            for (const c of chunks) {
+                out.set(c, off);
+                off += c.byteLength;
+            }
             return out.buffer;
         }
 
-        function mergeFiles(fileParts) {
-            return Promise.all(fileParts.map(part => fetchPart(part).then(buf => {
+        async function fetchSingleWithRetry(url, retries = MAX_RETRIES) {
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        activeProgress.delete(url);
+                        updateUI();
+                    }
+                    const res = await originalFetch(url);
+                    if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+                    return await readStreamWithProgress(res, url);
+                } catch (err) {
+                    activeProgress.delete(url);
+                    if (attempt < retries) {
+                        console.warn(`Retry ${attempt + 1}/${retries} for ${url}:`, err.message);
+                        await sleep(RETRY_DELAY_MS * (attempt + 1));
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+        }
+
+        async function fetchPartBlob(partUrl) {
+            const isChunked = partUrl.includes("Build/Build.data") || partUrl.includes("Build/Build.wasm") || partUrl.includes("Clip_Secret Tape 3.webm");
+            if (!isChunked) {
+                const buf = await fetchSingleWithRetry(partUrl);
                 doneparts++;
-                loadingText.textContent = `LOADING... (${doneparts}/${maxparts})`;
-                return buf;
-            }))).then(buffers => {
-                const mergedBlob = new Blob(buffers);
+                updateUI();
+                return new Blob([buf]);
+            }
+            const c0 = await fetchSingleWithRetry(partUrl + ".chunk00");
+            const c1 = await fetchSingleWithRetry(partUrl + ".chunk01");
+            doneparts++;
+            updateUI();
+            return new Blob([c0, c1]);
+        }
+
+        const queue = [];
+        let activeWorkers = 0;
+
+        function enqueuePart(partUrl) {
+            return new Promise((resolve, reject) => {
+                queue.push({ partUrl, resolve, reject });
+                pumpQueue();
+            });
+        }
+
+        function pumpQueue() {
+            while (activeWorkers < CONCURRENCY && queue.length > 0) {
+                const job = queue.shift();
+                activeWorkers++;
+                fetchPartBlob(job.partUrl).then(
+                    res => {
+                        activeWorkers--;
+                        job.resolve(res);
+                        pumpQueue();
+                    },
+                    err => {
+                        activeWorkers--;
+                        job.reject(err);
+                        pumpQueue();
+                    }
+                );
+            }
+        }
+
+        function mergeFiles(fileParts, mimeType) {
+            return Promise.all(fileParts.map(part => enqueuePart(part))).then(blobs => {
+                const mergedBlob = new Blob(blobs, mimeType ? { type: mimeType } : undefined);
                 return URL.createObjectURL(mergedBlob);
             });
         }
-        let doneparts = 0;
-        let maxparts = 0;
 
         function getParts(file, start, end) {
             let parts = [];
             for (let i = start; i <= end; i++) {
                 parts.push(file + ".part" + i);
             }
-            maxparts = maxparts + parts.length;
+            maxparts += parts.length;
             return parts;
         }
-        const originalFetch = window.fetch;
-        window.fetch = async function (...args) {
-            const url = args[0];
-            if (typeof url === "string") {
-                if (url.includes("gn-math.github.io/Clip_Secret Tape 2.webm")) {
-                    return new Response(f2Url, {
-                        status: 200
-                    });
-                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 3.webm")) {
-                    return new Response(f3Url, {
-                        status: 200
-                    });
-                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 5.webm")) {
-                    return new Response(f5Url, {
-                        status: 200
-                    });
-                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 6.webm")) {
-                    return new Response(f6Url, {
-                        status: 200
-                    });
-                }
-            }
-            return originalFetch.apply(this, args);
-        };
+
         let f2Url = null;
         let f6Url = null;
         let f3Url = null;
         let f5Url = null;
+
+        window.fetch = async function (...args) {
+            const url = args[0];
+            if (typeof url === "string") {
+                if (url.includes("gn-math.github.io/Clip_Secret Tape 2.webm")) {
+                    return new Response(f2Url, { status: 200 });
+                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 3.webm")) {
+                    return new Response(f3Url, { status: 200 });
+                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 5.webm")) {
+                    return new Response(f5Url, { status: 200 });
+                } else if (url.includes("gn-math.github.io/Clip_Secret Tape 6.webm")) {
+                    return new Response(f6Url, { status: 200 });
+                }
+            }
+            return originalFetch(...args);
+        };
+
         var baseCdn = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Amanda%20the%20Adventurer/";
         Promise.all([
-            mergeFiles(getParts(baseCdn + "Build/Build.wasm", 1, 4)),
+            mergeFiles(getParts(baseCdn + "Build/Build.wasm", 1, 4), "application/wasm"),
             mergeFiles(getParts(baseCdn + "Build/Build.data", 1, 63)),
-            // ---
-            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 2.webm", 1, 2)),
-            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 6.webm", 1, 2)),
-            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 3.webm", 1, 2)),
-            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 5.webm", 1, 3))
+            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 2.webm", 1, 2), "video/webm"),
+            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 6.webm", 1, 2), "video/webm"),
+            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 3.webm", 1, 2), "video/webm"),
+            mergeFiles(getParts(baseCdn + "gn-math.github.io/Clip_Secret Tape 5.webm", 1, 3), "video/webm")
         ]).then(([wasmUrl, dataUrl, f2, f6, f3, f5]) => {
             f2Url = f2;
             f6Url = f6;
@@ -170,6 +287,7 @@
                 resizeCanvas();
                 window.addEventListener('resize', resizeCanvas);
             }
+            textEl.textContent = "Starting Unity Engine...";
             loadingBar.style.display = "block";
             var script = document.createElement("script");
             script.src = loaderUrl;
@@ -178,14 +296,17 @@
                     progressBarFull.style.width = 100 * progress + "%";
                 }).then((unityInstance) => {
                     loadingBar.style.display = "none";
-                    document.querySelector("#loading-text").remove();
+                    loaderEl.style.display = "none";
                 }).catch((message) => {
-                    alert(message);
+                    textEl.textContent = "Error: " + message;
+                    console.error(message);
                 });
             };
             document.body.appendChild(script);
+        }).catch(err => {
+            textEl.textContent = "Error loading files: " + err.message;
+            console.error(err);
         });
-
     </script>
 </body>
 
