@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Cuphead/">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Cuphead</title>
+    <style>
+      body {
+        background-color: black;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      #gameContainer {
+        width: 100vw !important;
+        height: 100vh !important;
+      }
+      canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+      #loading-text {
+        font-weight: bold;
+        background: linear-gradient(
+          270deg,
+          #ff0000,
+          #ff7f00,
+          #ffff00,
+          #00ff00,
+          #0000ff,
+          #4b0082,
+          #8f00ff
+        );
+        background-size: 400% 400%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: rainbow 3s ease infinite;
+      }
+
+      @keyframes rainbow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading-text" style="color: white; font-size: 36px; font-family: cursive; text-align: center; margin-top: 20px;">
+      LOADING CUPHEAD...
+    </div>
+    <div id="gameContainer"></div>
+    <script>
+      var OWN_BASE = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Cuphead/";
+      var PARTS_BASE = "https://cdn.jsdelivr.net/gh/web-ports/cuphead@c9ff1b6b16f9d402b78a42fc2200e1c076c0ab6e/";
+      var loadingText = document.querySelector("#loading-text");
+      var loadedBytes = 0;
+
+      async function fetchWithProgress(url) {
+        var response = await fetch(url);
+        if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
+        var reader = response.body.getReader();
+        var chunks = [];
+        var received = 0;
+        while (true) {
+          var res = await reader.read();
+          if (res.done) break;
+          var value = res.value;
+          received += value.length;
+          loadedBytes += value.length;
+          chunks.push(value);
+          var mbDone = (loadedBytes / (1024 * 1024)).toFixed(2);
+          var mbTotal = "2101.31";
+          loadingText.textContent = "LOADING CUPHEAD... " + mbDone + " MB / " + mbTotal + " MB";
+        }
+        var fullBuffer = new Uint8Array(received);
+        var offset = 0;
+        for (var i = 0; i < chunks.length; i++) {
+          fullBuffer.set(chunks[i], offset);
+          offset += chunks[i].length;
+        }
+        return fullBuffer.buffer;
+      }
+
+      async function mergeFiles(fileParts, cacheKey) {
+        try {
+          var cache = await caches.open("cuphead-cache");
+          var cachedResponse = await cache.match(cacheKey);
+          if (cachedResponse) {
+            var blob = await cachedResponse.blob();
+            return URL.createObjectURL(blob);
+          }
+        } catch (e) {}
+
+        var results = new Array(fileParts.length);
+        var nextIdx = 0;
+        var concurrency = 6;
+        async function worker() {
+          while (nextIdx < fileParts.length) {
+            var idx = nextIdx++;
+            results[idx] = await fetchWithProgress(fileParts[idx]);
+          }
+        }
+        var workers = [];
+        for (var w = 0; w < concurrency; w++) workers.push(worker());
+        await Promise.all(workers);
+
+        var mergedBlob = new Blob(results);
+        try {
+          var cache2 = await caches.open("cuphead-cache");
+          await cache2.put(cacheKey, new Response(mergedBlob));
+        } catch (e) {}
+        return URL.createObjectURL(mergedBlob);
+      }
+
+      function getParts(file, start, end) {
+        var parts = [];
+        for (var i = start; i <= end; i++) {
+          parts.push(PARTS_BASE + file + ".part" + i);
+        }
+        return parts;
+      }
+
+      (async function () {
+        try {
+          var loaderRes = await fetch(OWN_BASE + "Build/UnityLoader.js");
+          var loaderCode = await loaderRes.text();
+          (0, eval)(loaderCode);
+
+          var urls = await Promise.all([
+            mergeFiles(getParts("Build/CupheadPort.data.unityweb", 1, 103), "CupheadPort.data.unityweb"),
+            mergeFiles(getParts("Build/CupheadPort.wasm.code.unityweb", 1, 2), "CupheadPort.wasm.code.unityweb"),
+            mergeFiles(getParts("Build/CupheadPort.asm.code.unityweb", 1, 3), "CupheadPort.asm.code.unityweb")
+          ]);
+          var dataUrl = urls[0];
+          var wasmUrl = urls[1];
+          var asmUrl = urls[2];
+
+          var originalOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function (method, url) {
+            var rest = Array.prototype.slice.call(arguments, 2);
+            if (typeof url === "string") {
+              if (url.indexOf("CupheadPort.data.unityweb") !== -1) {
+                url = dataUrl;
+              } else if (url.indexOf("CupheadPort.wasm.code.unityweb") !== -1) {
+                url = wasmUrl;
+              } else if (url.indexOf("CupheadPort.asm.code.unityweb") !== -1) {
+                url = asmUrl;
+              } else if (url.indexOf("CupheadPort.") !== -1 && url.indexOf("http") !== 0 && url.indexOf("blob:") !== 0) {
+                url = OWN_BASE + "Build/" + url.split("/").pop();
+              }
+            }
+            return originalOpen.apply(this, [method, url].concat(rest));
+          };
+
+          UnityLoader.instantiate("gameContainer", OWN_BASE + "Build/CupheadPort.json");
+          if (loadingText) loadingText.remove();
+        } catch (err) {
+          console.error(err);
+          if (loadingText) loadingText.textContent = "Error loading Cuphead: " + err.message;
+        }
+      })();
+    </script>
+  </body>
+</html>

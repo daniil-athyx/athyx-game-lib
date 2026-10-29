@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%203/">
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
+    <title>Vex 3</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%203/assets/css/app.css" type="text/css" />
+    <link rel="icon" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%203/vex3.png">
+  </head>
+  <body>
+    <div id="content"></div>
+    <div id="loader">Loading...</div>
+
+    <script type="text/javascript">
+      var BASE_URL = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%203/";
+      var gameName = "vex-3.min.js";
+
+      function addScript(src, buster, callback) {
+        var s = document.createElement("script");
+        var fullSrc = src.indexOf("http") === 0 ? src : (BASE_URL + src);
+        s.setAttribute("src", fullSrc + "?v=" + buster);
+        if (typeof callback === "function") {
+          s.onload = callback;
+        }
+        document.body.appendChild(s);
+      }
+
+      addScript("version.js", 1, function () {
+        addScript(gameName, version, function () {
+          new Vex3.Game();
+        });
+      });
+    </script>
+  </body>
+</html>

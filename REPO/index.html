@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/REPO/">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>R.E.P.O.</title>
+    <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/REPO/TemplateData/favicon.ico">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/REPO/TemplateData/style.css">
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background: #111;
+            font-family: Arial, sans-serif;
+        }
+
+        #unity-container {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #111;
+            color: #fff;
+            z-index: 9999;
+        }
+
+        #loading-text {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+
+        #dl-bar-wrap {
+            width: 320px;
+            height: 14px;
+            background: #2a2a2a;
+            border-radius: 7px;
+            overflow: hidden;
+            border: 1px solid #444;
+        }
+
+        #dl-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff6a00, #ffcc00);
+            transition: width 0.15s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading-overlay">
+        <div id="loading-text">LOADING R.E.P.O... 0%</div>
+        <div id="dl-bar-wrap">
+            <div id="dl-bar-fill"></div>
+        </div>
+    </div>
+    <div id="unity-container" class="unity-desktop" hidden>
+        <canvas id="unity-canvas" tabindex="-1"></canvas>
+        <div id="unity-loading-bar">
+            <div id="unity-logo"></div>
+            <div id="unity-progress-bar-empty">
+                <div id="unity-progress-bar-full"></div>
+            </div>
+        </div>
+        <div id="unity-warning"> </div>
+    </div>
+    <script>
+        var BASE_URL = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/REPO/";
+        var container = document.querySelector("#unity-container");
+        var canvas = document.querySelector("#unity-canvas");
+        var loadingBar = document.querySelector("#unity-loading-bar");
+        var progressBarFull = document.querySelector("#unity-progress-bar-full");
+        var warningBanner = document.querySelector("#unity-warning");
+        var loadingOverlay = document.querySelector("#loading-overlay");
+        var loadingText = document.querySelector("#loading-text");
+        var dlBarFill = document.querySelector("#dl-bar-fill");
+
+        var totalParts = 25;
+        var completedParts = 0;
+
+        function updateDownloadProgress() {
+            completedParts++;
+            var pct = Math.min(100, Math.round((completedParts / totalParts) * 100));
+            if (loadingText) loadingText.textContent = "LOADING R.E.P.O... " + pct + "%";
+            if (dlBarFill) dlBarFill.style.width = pct + "%";
+        }
+
+        async function fetchWithRetry(url, retries) {
+            retries = retries || 4;
+            for (var attempt = 0; attempt < retries; attempt++) {
+                try {
+                    var res = await fetch(url);
+                    if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
+                    var buf = await res.arrayBuffer();
+                    updateDownloadProgress();
+                    return buf;
+                } catch (err) {
+                    if (attempt === retries - 1) throw err;
+                    await new Promise(function (r) { setTimeout(r, 800 * (attempt + 1)); });
+                }
+            }
+        }
+
+        async function mergeFiles(fileParts) {
+            var results = new Array(fileParts.length);
+            var nextIndex = 0;
+            var concurrency = 4;
+
+            async function worker() {
+                while (nextIndex < fileParts.length) {
+                    var idx = nextIndex++;
+                    results[idx] = await fetchWithRetry(fileParts[idx], 4);
+                }
+            }
+
+            var workers = [];
+            for (var w = 0; w < concurrency; w++) workers.push(worker());
+            await Promise.all(workers);
+
+            var mergedBlob = new Blob(results);
+            return URL.createObjectURL(mergedBlob);
+        }
+
+        function getParts(file, start, end) {
+            var parts = [];
+            for (var i = start; i <= end; i++) {
+                parts.push(BASE_URL + file + ".part" + i);
+            }
+            return parts;
+        }
+
+        Promise.all([
+            mergeFiles(getParts("Build/NewestBuild.wasm.gz", 1, 3)),
+            mergeFiles(getParts("Build/NewestBuild.data.gz", 1, 22))
+        ]).then(async function (urls) {
+            var wasmUrl = urls[0];
+            var dataUrl = urls[1];
+            container.hidden = false;
+            var buildUrl = BASE_URL + "Build";
+            var loaderUrl = buildUrl + "/NewestBuild.loader.js";
+            var config = {
+                dataUrl: dataUrl,
+                frameworkUrl: buildUrl + "/NewestBuild.framework.js.gz",
+                codeUrl: wasmUrl,
+                streamingAssetsUrl: BASE_URL + "StreamingAssets",
+                companyName: "semiwork",
+                productName: "R.E.P.O",
+                productVersion: "0.1",
+                cacheControl: function () { return "no-store"; }
+            };
+            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                var meta = document.createElement('meta');
+                meta.name = 'viewport';
+                meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+                document.getElementsByTagName('head')[0].appendChild(meta);
+                container.className = "unity-mobile";
+                canvas.className = "unity-mobile";
+            } else {
+                function resizeCanvas() {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    canvas.style.width = window.innerWidth + "px";
+                    canvas.style.height = window.innerHeight + "px";
+                }
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+            }
+            loadingBar.style.display = "block";
+            var loaderRes = await fetch(loaderUrl);
+            var loaderCode = await loaderRes.text();
+            (0, eval)(loaderCode);
+
+            createUnityInstance(canvas, config, function (progress) {
+                progressBarFull.style.width = 100 * progress + "%";
+            }).then(function (unityInstance) {
+                loadingBar.style.display = "none";
+                if (loadingOverlay) loadingOverlay.remove();
+            }).catch(function (message) {
+                console.error(message);
+                if (loadingText) loadingText.textContent = "Error: " + message;
+            });
+        }).catch(function (err) {
+            console.error(err);
+            if (loadingText) loadingText.textContent = "Failed to load assets: " + err.message;
+        });
+    </script>
+</body>
+
+</html>

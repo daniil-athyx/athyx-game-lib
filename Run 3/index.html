@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/">
+	<meta charset="utf-8">
+	<title>Run 3</title>
+	<meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/splash_256x256.png" />
+	<meta http-equiv="content-security-policy" content="img-src * data:">
+	<script>
+		window.addEventListener("touchmove", function (event) { event.preventDefault(); }, { capture: false, passive: false });
+		if (typeof window.devicePixelRatio != 'undefined' && window.devicePixelRatio > 2) {
+			var meta = document.getElementById("viewport");
+			meta.setAttribute('content', 'width=device-width, initial-scale=' + (2 / window.devicePixelRatio) + ', user-scalable=no');
+		}
+	</script>
+	<style>
+		html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000000; }
+		#openfl-content { background: #000000; width: 100%; height: 100%; }
+		@font-face {
+			font-family: 'Comfortaa Bold';
+			src: url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/COMFORTAA-BOLD.eot?#iefix') format('embedded-opentype'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/COMFORTAA-BOLD.woff') format('woff'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/COMFORTAA-BOLD.TTF') format('truetype'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/COMFORTAA-BOLD.svg#Comfortaa%20Bold') format('svg');
+			font-weight: normal;
+			font-style: normal;
+		}
+		@font-face {
+			font-family: 'Comfortaa';
+			src: url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/Comfortaa.eot?#iefix') format('embedded-opentype'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/Comfortaa.woff') format('woff'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/Comfortaa.otf') format('opentype');
+			font-weight: normal;
+			font-style: normal;
+		}
+		@font-face {
+			font-family: 'Permanent Marker';
+			src: url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/PERMANENTMARKER.eot?#iefix') format('embedded-opentype'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/PERMANENTMARKER.woff') format('woff'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/PERMANENTMARKER.TTF') format('truetype'),
+			url('https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/font/PERMANENTMARKER.svg#Permanent%20Marker') format('svg');
+			font-weight: normal;
+			font-style: normal;
+		}
+	</style>
+</head>
+<body>
+	<div id="openfl-content"></div>
+	<script type="text/javascript">
+		(async function() {
+			var res = await fetch("https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Run%203/Run3.js");
+			var code = await res.text();
+			(0, eval)(code);
+			lime.embed("Run3", "openfl-content", 800, 600, { parameters: {} });
+		})();
+	</script>
+</body>
+</html>
