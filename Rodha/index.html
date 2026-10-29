@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Rodha/" />
+    <title>Rodha</title>
+    <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Rodha/TemplateData/favicon.ico" />
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #231f20;
+      }
+
+      #unity-container {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #unity-canvas {
+        width: 100vw;
+        height: 100vh;
+        display: block;
+        background: #231f20;
+      }
+
+      #loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        background: #0b0b0b;
+        color: white;
+        font-family: sans-serif;
+        z-index: 10;
+      }
+
+      #bar {
+        width: 60%;
+        height: 12px;
+        background: #333;
+      }
+
+      #fill {
+        height: 100%;
+        width: 0%;
+        background: #4caf50;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="loader">
+      <div id="text">0.0 MB / 40 MB</div>
+      <div id="bar">
+        <div id="fill"></div>
+      </div>
+    </div>
+
+    <div id="unity-container">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+    </div>
+
+    <script>
+      const baseBuild = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Rodha/Build/";
+      const base = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Rodha/";
+      const loaderUrl = baseBuild + "FB%20v4.loader.js";
+
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY_MS = 1000;
+
+      const partProgress = new Map();
+      const totalGuess = 41714458;
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function updateUI() {
+        let loaded = 0;
+        for (const v of partProgress.values()) loaded += v;
+        const mb = (loaded / 1024 / 1024).toFixed(1);
+        const total = (totalGuess / 1024 / 1024).toFixed(0);
+        document.getElementById("text").textContent = mb + " MB / " + total + " MB";
+        document.getElementById("fill").style.width = Math.min(100, (loaded / totalGuess) * 100) + "%";
+      }
+
+      async function readPartResponse(response, progressKey) {
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.byteLength;
+          partProgress.set(progressKey, received);
+          updateUI();
+        }
+
+        const out = new Uint8Array(received);
+        let off = 0;
+        for (const chunk of chunks) {
+          out.set(chunk, off);
+          off += chunk.byteLength;
+        }
+        return out.buffer;
+      }
+
+      async function fetchPartWithRetry(url, retries = MAX_RETRIES) {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          try {
+            if (attempt > 0) {
+              partProgress.set(url, 0);
+              updateUI();
+            }
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("HTTP " + response.status + " for " + url);
+            return await readPartResponse(response, url);
+          } catch (err) {
+            if (attempt < retries) {
+              console.warn(`Retry ${attempt + 1}/${retries} for ${url}:`, err.message);
+              await sleep(RETRY_DELAY_MS * (attempt + 1));
+            } else {
+              throw new Error("Failed after " + (retries + 1) + " attempts: " + url);
+            }
+          }
+        }
+      }
+
+      async function loadWasm() {
+        const urls = [
+          baseBuild + "FB%20v4.wasm.part1",
+          baseBuild + "FB%20v4.wasm.part2"
+        ];
+        const buffers = await Promise.all(urls.map((u) => fetchPartWithRetry(u)));
+        return new Blob(buffers, { type: "application/wasm" });
+      }
+
+      async function loadData() {
+        const buf = await fetchPartWithRetry(baseBuild + "FB%20v4.data");
+        return new Blob([buf]);
+      }
+
+      async function ensureUnityLoader(url) {
+        if (typeof window.createUnityInstance === "function") return;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to load Unity loader (" + res.status + ")");
+        const code = await res.text();
+        (0, eval)(code);
+      }
+
+      async function start() {
+        const [wasmBlob, dataBlob] = await Promise.all([
+          loadWasm(),
+          loadData(),
+          ensureUnityLoader(loaderUrl)
+        ]);
+
+        const wasmUrl = URL.createObjectURL(wasmBlob);
+        const dataUrl = URL.createObjectURL(dataBlob);
+
+        document.getElementById("text").textContent = "Starting game...";
+
+        const instance = await window.createUnityInstance(document.querySelector("#unity-canvas"), {
+          dataUrl: dataUrl,
+          frameworkUrl: baseBuild + "FB%20v4.framework.js",
+          codeUrl: wasmUrl,
+          streamingAssetsUrl: "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Rodha/StreamingAssets",
+          companyName: "Liminal Creations",
+          productName: "Rodha",
+          productVersion: "1.0",
+          cacheControl: function () {
+            return "no-store";
+          }
+        });
+
+        window.unityInstance = instance;
+        document.getElementById("loader").style.display = "none";
+
+        function pauseUnityAudio() {
+          try {
+            if (instance) instance.SendMessage("BGM", "PauseMusic");
+          } catch (e) {}
+        }
+
+        function resumeUnityAudio() {
+          try {
+            if (instance) instance.SendMessage("BGM", "ResumeMusic");
+          } catch (e) {}
+        }
+
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) pauseUnityAudio();
+          else resumeUnityAudio();
+        });
+
+        window.addEventListener("blur", pauseUnityAudio);
+        window.addEventListener("focus", resumeUnityAudio);
+      }
+
+      start().catch(function (err) {
+        document.getElementById("text").textContent = "Error: " + err.message;
+        console.error(err);
+      });
+    </script>
+  </body>
+</html>
