@@ -1,53 +1,73 @@
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/html">
-<head>
+  <head>
     <base href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/">
-    <meta charset="utf-8">
-    <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <meta id="viewport" name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui,shrink-to-fit=no">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta id="viewport" name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,minimal-ui,shrink-to-fit=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Vex 6</title>
-    <link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/icon.png">
-    <link rel="apple-touch-icon" type="image/png" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/icon.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/css/app.css" type="text/css">
-</head>
-<body>
-    <div id="content"> </div>
+    <link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/icon.png" />
+    <link rel="apple-touch-icon" type="image/png" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/icon.png" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/assets/css/app.css" type="text/css" />
+  </head>
+  <body>
+    <div id="content"></div>
+    <div id="loader">Loading...</div>
     <div id="orientation"></div>
+    <script id="gamedistribution-jssdk"></script>
+    <script id="yandex-jssdk"></script>
     <script type="text/javascript">
-        var BASE_URL = "https://cdn.jsdelivr.net/gh/daniil-athyx/athyx-game-lib@main/Vex%206/";
-        var gtag;
+      window.version = "Yandex-43";
+      window.libs = [];
+      window.fbrqLA = false;
+      window.fbrqBD = 0;
+      window.playBtn = false;
+      window.fbrqSA = true;
+      window.azCP = false;
+      window.gdsdk = {
+        showAd: function() { return Promise.resolve(); },
+        showBanner: function() { return Promise.resolve(); },
+        preloadAd: function() { return Promise.resolve(); },
+        init: function() { return Promise.resolve(); },
+        sendEvent: function() {},
+        getSession: function() { return { location: { parentDomain: window.location.host } }; }
+      };
+      window.GD_OPTIONS = {
+        gameId: "0c454c9562d249d28ba3a2b50564042c",
+        advertisementSettings: { autoplay: false },
+        onEvent: function() {}
+      };
+      var _azerionIntegration = {
+        rType: "none",
+        af: false,
+        sa: true,
+        la: "false",
+        bd: 0,
+        playBtn: "false",
+        cp: false
+      };
+      var gtag = function() {};
 
-        var _azerionIntegration = {
-            "rType": "none",
-            "af": false,
-            "sa": true,
-            "la": "false",
-            "bd": 0,
-            "playBtn": "false",
-            "cp": false
+      window.addEventListener("load", function () {
+        var s = document.createElement("script");
+        s.src = "vex6.min.js";
+        s.onload = function () {
+          var loader = document.getElementById("loader");
+          if (loader) loader.style.display = "none";
         };
-
-        var libs = [];
-        var gameName = "vex6.min.js";
-        var fbrqLA = false,
-            fbrqBD = 0,
-            playBtn = false,
-            fbrqSA = true,
-            version = 'Yandex-43',
-            azCP = false;
-
-        function addScript(src, buster, callback) {
-            var s = document.createElement('script');
-            var fullSrc = src.indexOf("http") === 0 ? src : (BASE_URL + src);
-            s.setAttribute('src', fullSrc + '?v=' + buster);
-            if (typeof callback === 'function') {
-                s.onload = callback;
-            }
-            document.body.appendChild(s);
-        }
-        addScript(gameName, version, function() {});
+        s.onerror = function () {
+          var retry = document.createElement("script");
+          retry.src = "https://raw.githubusercontent.com/daniil-athyx/athyx-game-lib/main/Vex%206/vex6.min.js";
+          retry.onload = function () {
+            var loader = document.getElementById("loader");
+            if (loader) loader.style.display = "none";
+          };
+          document.body.appendChild(retry);
+        };
+        document.body.appendChild(s);
+      });
     </script>
-</body>
+  </body>
 </html>
