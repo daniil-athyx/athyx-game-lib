@@ -139,25 +139,37 @@
 
       const buffers = [];
       for (let i = 0; i < parts.length; i++) {
-        const response = await window.originalFetch(parts[i]);
-        if (response.ok) {
+        let response = null;
+        try {
+          response = await window.originalFetch(parts[i]);
+        } catch (_) {}
+        if (response && response.ok) {
           buffers.push(await response.arrayBuffer());
-        } else if (response.status === 403 || response.status === 404) {
+        } else if (!response || response.status === 403 || response.status === 404) {
           for (let chunkCount = 0; chunkCount < 2; chunkCount++) {
             const chunkUrl = `${parts[i]}.chunk${String(chunkCount).padStart(2, "0")}`;
-            const chunkResponse = await window.originalFetch(chunkUrl);
-            if (!chunkResponse.ok) {
+            let chunkResponse = null;
+            try {
+              chunkResponse = await window.originalFetch(chunkUrl);
+            } catch (_) {}
+            if (!chunkResponse || !chunkResponse.ok) {
+              const rawChunkUrl = chunkUrl.replace(/https?:\/\/[^\/]+\/gh\/([^\/]+)\/([^\/@]+)@[^\/]+\//i, 'https://raw.githubusercontent.com/$1/$2/main/');
+              try {
+                chunkResponse = await window.originalFetch(rawChunkUrl);
+              } catch (_) {}
+            }
+            if (!chunkResponse || !chunkResponse.ok) {
               throw new Error(
                 chunkCount === 0
                   ? `Part missing: ${parts[i]}`
-                  : `Chunk missing: ${chunkUrl} (${chunkResponse.status})`,
+                  : `Chunk missing: ${chunkUrl} (${chunkResponse ? chunkResponse.status : 'error'})`,
               );
             }
             buffers.push(await chunkResponse.arrayBuffer());
           }
         } else {
           throw new Error(
-            `failed to load sowwy (make a report in bug-reports in the discord) ${parts[i]}: ${response.status}`,
+            `failed to load ${parts[i]}: ${response ? response.status : 'network error'}`,
           );
         }
 
