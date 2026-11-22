@@ -582,7 +582,10 @@ Module.readBodyWithProgress = function() {
 
 Module.fetchWithProgress = function () {
   function fetchWithProgress(resource, init) {
-    if (Module.fetchWithProgressOverride) return Module.fetchWithProgressOverride(resource, init);
+    if (Module.fetchWithProgressOverride) {
+      var custom = Module.fetchWithProgressOverride(resource, init);
+      if (custom) return custom;
+    }
     var onProgress = function () { };
     if (init && init.onProgress) {
       onProgress = init.onProgress;
