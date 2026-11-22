@@ -99,6 +99,8 @@ function createUnityInstance(canvas, config, onProgress) {
 
   for (var parameter in config)
     Module[parameter] = config[parameter];
+  if (config.fetchWithProgress) Module.fetchWithProgressOverride = config.fetchWithProgress;
+  if (config.dataBytes) Module.dataBytes = config.dataBytes;
 
   Module.streamingAssetsUrl = new URL(Module.streamingAssetsUrl, document.URL).href;
 
@@ -580,6 +582,7 @@ Module.readBodyWithProgress = function() {
 
 Module.fetchWithProgress = function () {
   function fetchWithProgress(resource, init) {
+    if (Module.fetchWithProgressOverride) return Module.fetchWithProgressOverride(resource, init);
     var onProgress = function () { };
     if (init && init.onProgress) {
       onProgress = init.onProgress;
@@ -641,6 +644,7 @@ Module.fetchWithProgress = function () {
 
 
   function downloadBinary(urlId) {
+      if (Module.dataBytes && urlId === "dataUrl") return Promise.resolve(Module.dataBytes);
       progressUpdate(urlId);
       var cacheControl = "no-store";
       var fetchImpl = Module.fetchWithProgress;
@@ -775,7 +779,7 @@ Module.fetchWithProgress = function () {
     });
 
     var dataUrlLoadStartTime = performance.now();
-    var dataPromise = downloadBinary("dataUrl");
+    var dataPromise = Module.dataBytes ? Promise.resolve(Module.dataBytes) : downloadBinary("dataUrl");
     Module.preRun.push(function () {
       Module.addRunDependency("dataUrl");
       dataPromise.then(function (data) {
